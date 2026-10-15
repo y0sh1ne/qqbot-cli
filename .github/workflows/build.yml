@@ -1,0 +1,93 @@
+name: 构建 QQBot-cli
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: 构建 ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Ubuntu x86_64
+            os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            executable: qqbot-cli
+            artifact: qqbot-cli-ubuntu-x86_64
+            rustflags: ""
+          - platform: Windows x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            executable: qqbot-cli.exe
+            artifact: qqbot-cli-windows-x86_64.exe
+            rustflags: "-C target-feature=+crt-static"
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUSTFLAGS: ${{ matrix.rustflags }}
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v6
+
+      - name: 安装 Rust 工具链
+        id: toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt --target "${{ matrix.target }}"
+          rustup default stable
+          rustc -Vv | sed -n 's/^commit-hash: /commit=/p' >> "$GITHUB_OUTPUT"
+
+      - name: 安装 musl 工具
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends musl-tools
+
+      - name: 缓存 Cargo 依赖和构建文件
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-rust-${{ steps.toolchain.outputs.commit }}-${{ matrix.target }}-${{ hashFiles('Cargo.lock') }}
+
+      - name: 检查代码格式
+        run: cargo fmt --all -- --check
+
+      - name: 编译发布版可执行程序
+        run: cargo build --locked --release --target "${{ matrix.target }}"
+
+      - name: 验证命令行入口
+        run: |
+          binary="./target/${{ matrix.target }}/release/${{ matrix.executable }}"
+          "$binary" --version
+          "$binary" --help
+          "$binary" register --help
+          "$binary" send text --help
+          "$binary" send file --help
+
+      - name: 整理可执行程序
+        run: |
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/${{ matrix.executable }}" "dist/${{ matrix.artifact }}"
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }} 单文件程序
+          path: dist/${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 30
