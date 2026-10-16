@@ -1,0 +1,4 @@
+interface:
+  display_name: "QQBot CLI"
+  short_description: "使用 QQ 机器人向已注册用户发送文本消息和本地文件"
+  default_prompt: "使用 $qqbot-cli 向指定 QQ 用户发送消息或本地文件，并检查发送结果。"
