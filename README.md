@@ -129,7 +129,7 @@ cargo build --locked --release
 
 `--locked` 使用 `Cargo.lock` 中锁定的依赖版本，`--release` 生成优化后的发布版程序。首次构建需要联网下载依赖。该命令只编译当前平台的程序，不会运行测试。
 
-### Ubuntu / Linux
+### Ubuntu / Linux / Mac
 
 ```bash
 cd /path/to/qqbot-cli
@@ -137,6 +137,7 @@ cargo build --locked --release
 ```
 
 编译产物为 `target/release/qqbot-cli`。
+> Mac 需要安装 Xcode Command Line Tools（`xcode-select --install`）。
 
 ### Windows PowerShell
 
@@ -151,15 +152,38 @@ cargo build --locked --release
 
 上述命令不会自动将产物复制到 `dist/`。构建后可直接运行产物，或复制到所需目录；运行配置通过 `qq config` 设置，编译时不需要 `APP_ID` 或 `CLIENT_SECRET`。
 
+## Agent Skill
+
+`skill/qqbot-cli/SKILL.md` 提供使用 QQ 机器人发送消息和文件的 skill，包含配置目录选择、收件人注册、发送结果检查和固定版本下载命令。该目录可独立安装和迁移，以其中的 `SKILL.md` 所在目录为根目录，从自身的 `bin/` 运行单文件程序。本地程序统一命名为 `qqbot-cli`（Windows 为 `qqbot-cli.exe`），无需定位原仓库。
+
+## GitHub Actions 与 Release
+
+普通分支推送、Pull Request 和手动触发会构建 Linux x86_64、Windows x86_64、macOS Apple Silicon 三个平台的单文件程序，并上传 Actions 构建产物。
+
+推送版本 tag（例如 `v0.0.0`）还会在全部平台构建成功后创建 GitHub Release，并上传以下可直接下载的附件（重跑时覆盖同名附件）：
+
+- `qqbot-cli-ubuntu-x86_64`
+- `qqbot-cli-windows-x86_64.exe`
+- `qqbot-cli-macos-aarch64`
+
+提交待发布代码后，使用以下命令发布（确保本地 tag 指向要发布的提交）：
+
+```bash
+git tag v0.0.0
+git push origin v0.0.0
+```
+
+工作流仅给 Release job 授予 `contents: write`，使用内置 `GITHUB_TOKEN` 发布，无需额外的访问令牌；带预发布后缀的 tag（如 `v0.0.1-rc.1`）会创建为预发布版本。skill 下载命令固定使用 `v0.0.0`，需先成功发布该版本，再使用下载命令；后续升级时同步更新文档中的固定版本号。
+
 ## 目录结构
 
 ```text
-qq/
-├── .github/workflows/build.yml # GitHub Actions 双平台构建工作流
+qqbot-cli/
+├── .github/workflows/build.yml # 三平台构建与 tag Release 工作流
 ├── Cargo.toml          # Rust 项目与依赖声明
 ├── Cargo.lock          # 锁定依赖版本
 ├── src/main.rs         # 程序源码
-├── dist/               # 两个平台的可执行文件
+├── skill/qqbot-cli/     # 独立 Agent Skill，内含自己的 bin/（不提交程序）
 └── README.md
 ```
 
